@@ -119,6 +119,8 @@ int main() {
             case (META):
                 //printf("Meta event at delta time %d (impossible)\n", midiMessage.dt);
                 break;
+            case default:
+                break;
             }
     }
 

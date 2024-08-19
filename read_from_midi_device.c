@@ -18,7 +18,7 @@ float frequency, duration;
 PmDeviceID deviceNo;
 PortMidiStream *device;
 pthread_t *pPulserThread;
-PmDeviceInfo *pDeviceInfo;
+const PmDeviceInfo *pDeviceInfo;
 PmEvent pEvent[1];
 PmMessage message;
 void *_garbage;
