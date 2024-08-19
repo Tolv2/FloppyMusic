@@ -1,0 +1,2 @@
+gcc -Wall -pthread -o play_midi_file play_midi_file.c libraries/midilib-master/src/midifile.c libraries/midilib-master/src/midiutil.c -lpigpio -Ilibraries/midilib-master/src/ -lrt
+gcc -Wall -pthread -o read_from_midi_device read_from_midi_device.c -lpigpio -lportmidi -lm -lrt
