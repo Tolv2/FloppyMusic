@@ -8,7 +8,7 @@
 
 
 #define FM_STEP_DURATION 3000000 //nanoseconds
-#define FM_STEP_RATIO 3000
+#define FM_STEP_RATIO 3000000
 #define FM_FLOPPY_TRACKS_35_IN 80
 
 #define FM_INDEX_ZERO (FM_index_t) 0
@@ -17,12 +17,12 @@
 typedef unsigned int FM_index_t;
 
 typedef struct FM_FloppyInfo {
-    const int directionSelectGPIOPin;
-    const int driveSelectGPIOPin;
-    const int stepGPIOPin;
-    const int floppyTracks;
-    const bool logicalTrue;
-    const void (*writeFunc)(int, bool);
+    int directionSelectGPIOPin;
+    int driveSelectGPIOPin;
+    int stepGPIOPin;
+    int floppyTracks;
+    bool logicalTrue;
+    void (*writeFunc)(int, bool);
 } FM_FloppyInfo;
 
 
@@ -44,5 +44,7 @@ void* FM_FloppyLoop(void* _floppy);
 int FM_RegisterFloppy(FM_Floppy* floppy);
 
 int FM_UnregisterFloppy(FM_Floppy* floppy);
+
+int FM_RegisterFloppyFromInfo(FM_Floppy* floppy, const FM_FloppyInfo* info);
 
 #endif

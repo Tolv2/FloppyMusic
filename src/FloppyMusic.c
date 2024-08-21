@@ -11,10 +11,11 @@ int* FM_MIDIMap;
 
 int FM_Init(FM_index_t maxFloppies){
     FM_MaxFloppies = maxFloppies;
-    FM_Registry = (FM_Floppy**) malloc(maxFloppies * sizeof(FM_Floppy));
-    FM_MIDIMap = (int*) malloc(maxFloppies * sizeof(int));
+    FM_Registry = (FM_Floppy**) malloc(maxFloppies * sizeof(FM_Floppy*));
+    FM_MIDIMap = (int*) malloc(128 * sizeof(int));
     if(FM_Registry == NULL || FM_MIDIMap == NULL) return -1;
     for(FM_index_t i=0; i<maxFloppies; i++){
+        printf("Allocated %p to pointer to floppy %d\n", FM_Registry+i, i);
         FM_Registry[i] = NULL;
     }
     FM_RegisteredFloppies = 0;
@@ -22,11 +23,14 @@ int FM_Init(FM_index_t maxFloppies){
 
     //Build map of MIDI notes to sound periods to avoid doing it on the fly
     float period;
+    printf("Midi Map:");
     for(int i=0; i<128; i++){
         period = 1000000000/(440.0 * pow(2, (float) (i-69)/12));
-        FM_MIDIMap[i] = (int) period;
+        *(FM_MIDIMap + i) = (int) period;
     }
+    printf("\n");
 
+    FM_Initialized = true;
     return 0;
 }
 
@@ -79,17 +83,19 @@ int FM_StartPlayingSound(int periodNanoseconds){
     if(floppy == NULL) return -2;
 
     floppy->sleepPeriod->tv_nsec = periodNanoseconds;
+    floppy->available = false;
     
     return 0;
 }
 
 int FM_StopPlayingSound(int periodNanoseconds){
+
     if(!FM_Initialized) return -127;
 
     FM_Floppy* floppy = FM_GetCurrentlyPlayingSound(periodNanoseconds);
     if(floppy == NULL) return -1;
-
     floppy->sleepPeriod->tv_nsec = 0;
+    floppy->available = true;
     return 0;
 }
 
@@ -102,3 +108,5 @@ int FM_StopPlayingMIDINote(int MIDINote){
     if(!FM_Initialized) return -127;
     return FM_StopPlayingSound(FM_MIDIMap[MIDINote]);
 }
+
+

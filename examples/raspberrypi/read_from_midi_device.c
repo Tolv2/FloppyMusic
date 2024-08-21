@@ -1,149 +1,147 @@
-#include <pigpio.h> //pigpio library - from https://github.com/joan2937/pigpio
+#include "FloppyMusic.h"
+
+#include <pigpio.h>
+#include <portmidi.h>
 #include <stdio.h>
-#include <unistd.h>
-#include <portmidi.h> //portmidi libary - from https://github.com/PortMidi/PortMidi
-#include <signal.h>
-#include <math.h>
+#include <stdlib.h>
+
+#define NUMBER_OF_FLOPPIES 2
+
+#define DIRECTION_SELECT_PIN_FLOPPY1 27 // Adjust these according to your physical connections.
+#define DRIVE_SELECT_PIN_FLOPPY1 22
+#define STEP_PIN_FLOPPY1 17
+
+#define DIRECTION_SELECT_PIN_FLOPPY2 2
+#define DRIVE_SELECT_PIN_FLOPPY2 3
+#define STEP_PIN_FLOPPY2 4
+
+#define LOGICAL_TRUE false // This refers to whether the pin is pulled high or low when you want the floppy drive to consider it as 'true'. There should be no reason to change it.
+#define FLOPPY_TRACKS 80 // This depends on your drive. 80 is a reasonable assumption, those are the most common.
+
+#define MIDI_MESSAGE_BUF_SIZE 16384 // I just made this up, adjust it if you have a very large file or something.
 
 
-#define DIRECTION_SELECT_PIN 27
-#define DRIVE_SELECT_PIN 22
-#define STEP_PIN 17
+void myWriteFunction(int pin, bool value){
+    gpioWrite(pin, value);
+}
 
-#define HEADLESS_MODE 1
-
-int track, direction, myError, running, note, lastNote, lastInputDevice;
-long status, data1, data2;
-float frequency, duration;
 PmDeviceID deviceNo;
-PortMidiStream *device;
-pthread_t *pPulserThread;
-const PmDeviceInfo *pDeviceInfo;
-PmEvent pEvent[1];
-PmMessage message;
-void *_garbage;
+PortMidiStream* device;
+PmEvent* event;
+FM_Floppy floppy1, floppy2;
+long status, note, velocity;
+FM_FloppyInfo floppy1info = {
+    DIRECTION_SELECT_PIN_FLOPPY1,
+    DRIVE_SELECT_PIN_FLOPPY1,
+    STEP_PIN_FLOPPY1,
+    FLOPPY_TRACKS,
+    LOGICAL_TRUE,
+    myWriteFunction
+},
+ floppy2info = {
+    DIRECTION_SELECT_PIN_FLOPPY2,
+    DRIVE_SELECT_PIN_FLOPPY2,
+    STEP_PIN_FLOPPY2,
+    FLOPPY_TRACKS,
+    LOGICAL_TRUE,
+    myWriteFunction
+};
 
-float freqFromNote(int _note){
-    return 440.0 * pow(2, (float) (_note-69)/12);
-}
-
-void pulse(float _duration){
-    struct timespec garbage, _duration_t = {0, (int) _duration};
-
-    gpioWrite(STEP_PIN, 0);
-    gpioWrite(DRIVE_SELECT_PIN, 0);
-
-    nanosleep(&_duration_t, &garbage);
-
-    gpioWrite(DRIVE_SELECT_PIN, 1);
-    gpioWrite(STEP_PIN, 1);
-}
-
-void *pulserThread(void *garbage){
-    for (;;) {
-        if ((int) frequency == 0){
-            usleep(1);
-        } else {
-            pulse(1000000000/frequency);
-            track++;
-            if (track == 80) {
-                track = 0;
-                direction = !direction;
-                gpioWrite(DIRECTION_SELECT_PIN, direction);
-            }
-        }
-    }
-}
-
-void onNoteOn(float _frequency){
-    frequency = _frequency;
-}
-void onNoteOff(){
-    frequency = 0;
-}
-
-void preQuit(){
-    gpioTerminate();
-    Pm_Terminate();
-}
-
-void onSigInt(int garbage){
-    printf("Recieved CTRL-C. Quitting;\n");
-    running = 0;
-}
 
 int main(){
-    signal(11, onSigInt);
-    gpioInitialise();
-    gpioSetMode(DRIVE_SELECT_PIN, PI_OUTPUT);
-    gpioSetMode(DIRECTION_SELECT_PIN, PI_OUTPUT);
-    gpioSetMode(STEP_PIN, PI_OUTPUT);
+    printf("Initialising FloppyMusic...\n");
+    if(FM_Init(NUMBER_OF_FLOPPIES) < 0){
+        printf("FloppyMusic library initialisation failed. That's embarrasing.\n");
+        return -1;
+    }
+    printf("FloppyMusic Initialisation succeded.\n");
 
-    track = 0;
-    direction = 0;
-    frequency = 0;
-    gpioWrite(DIRECTION_SELECT_PIN, direction);
+    if(gpioInitialise() < 0) {
+        printf("GPIO library initialisation failed. Are you running with sudo?\n");
+        return -2;
+    }
+    printf("GPIO Initialisation succeded.\n");
 
-    for (int i=0; i < 80; i++) pulse(3000000);
+    gpioSetMode(DRIVE_SELECT_PIN_FLOPPY1, PI_OUTPUT);
+    gpioSetMode(DIRECTION_SELECT_PIN_FLOPPY1, PI_OUTPUT);
+    gpioSetMode(STEP_PIN_FLOPPY1, PI_OUTPUT);
+    
+    gpioSetMode(DRIVE_SELECT_PIN_FLOPPY2, PI_OUTPUT);
+    gpioSetMode(DIRECTION_SELECT_PIN_FLOPPY2, PI_OUTPUT);
+    gpioSetMode(STEP_PIN_FLOPPY2, PI_OUTPUT);
+    
 
-    direction = 1;
-    gpioWrite(DIRECTION_SELECT_PIN, direction);
-    pPulserThread = gpioStartThread(pulserThread, "\0");
-
-    Pm_Initialize();
+    if(Pm_Initialize() < 0) {
+        printf("PortMidi library initialization failed. Does your system support MIDI? There should be at least a MIDI loopback device listed when running 'aplaymidi -l'\n");
+        gpioTerminate();
+        return -3;
+    }
+    printf("PortMidi Initialisation succeded.\n");
 
     for (int i=0; i<Pm_CountDevices(); i++){
-        pDeviceInfo = Pm_GetDeviceInfo(i);
-        if (pDeviceInfo->input) printf("Input device number %d info:\nName: \"%s\"\n\n", i, pDeviceInfo->name);
-        lastInputDevice = i;
-    }
-    if (!(HEADLESS_MODE)){
-        printf("Select device number?>");
-        scanf("%d", &deviceNo);
-    } else {
-        deviceNo = lastInputDevice;
-    }
-    printf("Selected device: %d. Opening as input.\n", deviceNo);
+        PmDeviceInfo* deviceInfo = Pm_GetDeviceInfo(i);
+        if (deviceInfo->input) printf("Input device number %d info:\nName: \"%s\"\n\n", i, deviceInfo->name);
+    } //TODO: add headless mode, maybe arg from command line, so this section would autoselect the e.g. first device
+    printf("Select device number?>");
+    scanf("%d", &deviceNo);
 
-    myError = Pm_OpenInput(&device, deviceNo, NULL, 20000, NULL, NULL);
-    if (myError) {
-        printf("Error no %d opening device; Quitting.\n", myError);
-        preQuit();
-        return -1;
+    printf("Selected device %d. Opening as input.\n", deviceNo);
+
+    if(Pm_OpenInput(&device, deviceNo, NULL, MIDI_MESSAGE_BUF_SIZE, NULL, NULL) < 0) {
+        printf("Opening the device failed. Exiting\n");
+        FM_Deinit();
+        gpioTerminate();
+        Pm_Terminate();
+        return -4;
     }
 
     Pm_SetFilter(device, PM_FILT_ACTIVE | PM_FILT_CLOCK | PM_FILT_SYSEX);
-    printf("Set filter to note messages only.\n");
-
+    printf("Set filter to note messages only. Clearing backbuffer of MIDI messages.\n");
+    
     while (Pm_Poll(device)) {
-        Pm_Read(device, pEvent, 1);
+        Pm_Read(device, event, 1);
     }
 
-    running = 1;
-    while (running){
-        if (Pm_Poll(device)){
-            myError = Pm_Read(device, pEvent, 1);
-            if(myError < 0) printf("Error reading message: %d\n", myError);
-            else if (myError == 0) printf("Somehown read no message again.\n");
-            else {
-                status = Pm_MessageStatus(pEvent[0].message);
-                data1 = Pm_MessageData1(pEvent[0].message);
-                data2 = Pm_MessageData2(pEvent[0].message);
-                printf("Read message: %2lx %2lx %2lx\n", status, data1, data2);
+    printf("Creating and registering FM_Floppy objects.\n");
+    if(FM_RegisterFloppyFromInfo(&floppy1, &floppy1info) != 0 ||
+    FM_RegisterFloppyFromInfo(&floppy2, &floppy2info) != 0) {
+        printf("Creating and registering FM_Floppy failed. Exiting.\n");
+        gpioTerminate();
+        Pm_Terminate();
+        return -5;
+    }
 
-                if (data2 == 0 && lastNote == (int) data1){
+
+
+    printf("Starting.\n");
+    bool running = true;
+
+
+    event = (PmEvent*) malloc(sizeof(PmEvent));
+    while (running){
+        if(Pm_Poll(device)){
+            if(Pm_Read(device, event, 1) <= 0){
+                printf("Failed reading an event. Probably an overflow\n");
+            } else{
+                status = Pm_MessageStatus(event->message);
+                note = Pm_MessageData1(event->message);
+                velocity = Pm_MessageData2(event->message);
+                printf("Read message: %2lx %2lx %2lx\n", status, note, velocity);
+
+                if (velocity == 0){
                     printf("Should now turn off.\n");
-                    onNoteOff();
-                } else if (data2 != 0) {
-                    note = (int) data1;
+                    FM_StopPlayingMIDINote((int)note);
+                } else if (velocity != 0) {
                     printf("Should now turn on note %d\n", note);
-                    onNoteOn(freqFromNote(note));
-                    lastNote = note;
+                    FM_StartPlayingMIDINote((int)note);
                 }
             }
         }
     }
 
-    preQuit();
-    return 0;
+    free(event);
+
+    gpioTerminate();
+    Pm_Terminate();
+    FM_Deinit();
 }

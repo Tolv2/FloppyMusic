@@ -15,7 +15,7 @@ void FM_FloppyClear(FM_Floppy* floppy){
 
     info->writeFunc(info->directionSelectGPIOPin, !floppy->floppyInfo->logicalTrue);
     info->writeFunc(info->driveSelectGPIOPin, !floppy->floppyInfo->logicalTrue);
-    info->writeFunc(info->directionSelectGPIOPin, !floppy->floppyInfo->logicalTrue);
+    info->writeFunc(info->stepGPIOPin, !floppy->floppyInfo->logicalTrue);
 }
 
 void* FM_FloppyLoop(void* _floppy){
@@ -25,9 +25,9 @@ void* FM_FloppyLoop(void* _floppy){
     const FM_FloppyInfo* info = floppy->floppyInfo;
     bool logicalFalse = !(info->logicalTrue);
     struct timespec duration = {0};
+    floppy->available = false;
 
 
-    FM_FloppyClear(floppy);
     
     duration.tv_nsec = FM_STEP_DURATION;
     for(int i=0; i<info->floppyTracks; i++){
@@ -41,24 +41,26 @@ void* FM_FloppyLoop(void* _floppy){
 
         nanosleep(&duration, NULL);
 
-        info->writeFunc(info->directionSelectGPIOPin, logicalFalse);
+        info->writeFunc(info->driveSelectGPIOPin, logicalFalse);
         info->writeFunc(info->stepGPIOPin, logicalFalse);
     }
 
+
+    FM_FloppyClear(floppy);
+
+    floppy->available = true;
     floppy->running = true;
     while (floppy->running){
-        if(floppy->sleepPeriod->tv_nsec == 0) {
-            floppy->available = true;
+        if(floppy->available) {
             usleep(1);
         } else {
-            floppy->available = false;
             // this is not in a function in order to reduce overhead
             info->writeFunc(info->stepGPIOPin, info->logicalTrue);
             info->writeFunc(info->driveSelectGPIOPin, info->logicalTrue);
 
-            nanosleep(&duration, NULL);
+            nanosleep(floppy->sleepPeriod, NULL);
 
-            info->writeFunc(info->directionSelectGPIOPin, logicalFalse);
+            info->writeFunc(info->driveSelectGPIOPin, logicalFalse);
             info->writeFunc(info->stepGPIOPin, logicalFalse);
 
             floppy->track += 1 + (duration.tv_nsec / (FM_STEP_RATIO));
@@ -71,6 +73,7 @@ void* FM_FloppyLoop(void* _floppy){
         }
     }
     FM_FloppyClear(floppy);
+    return NULL;
 }
 
 int FM_RegisterFloppy(FM_Floppy* floppy){
@@ -79,8 +82,14 @@ int FM_RegisterFloppy(FM_Floppy* floppy){
     FM_index_t _index = FM_GetFirstFreeIndex();
     if(_index == FM_INDEX_NOTFOUND) return -1;
     floppy->index = _index;
+    FM_Registry[_index] = floppy;
 
-    pthread_create(floppy->pulserThread, NULL, FM_FloppyLoop, (void*)floppy);
+    floppy->sleepPeriod = (struct timespec*) malloc(sizeof(struct timespec));
+    floppy->sleepPeriod->tv_sec = 0;
+    floppy->sleepPeriod->tv_nsec = 0;
+
+    floppy->pulserThread = (pthread_t*) malloc(sizeof(pthread_t));
+    pthread_create(floppy->pulserThread, NULL, FM_FloppyLoop, floppy);
     pthread_detach(*(floppy->pulserThread));
 
     FM_RegisteredFloppies++;
@@ -95,6 +104,16 @@ int FM_UnregisterFloppy(FM_Floppy* floppy){
     floppy->running = false;
     FM_Registry[floppy->index] = NULL;
 
+    free(floppy->sleepPeriod);
+    free(floppy->pulserThread);
+
     FM_RegisteredFloppies--;
     return 0;
+}
+
+int FM_RegisterFloppyFromInfo(FM_Floppy* floppy, const FM_FloppyInfo* info){
+    if(!FM_Initialized) return -127;
+
+    floppy->floppyInfo = info;
+    return FM_RegisterFloppy(floppy);
 }

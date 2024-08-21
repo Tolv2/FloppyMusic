@@ -3,7 +3,7 @@ CC = gcc
 AR = ar
 
 ARCHIVER_FLAGS = rcs
-COMPILER_FLAGS = -w -pthread -c -fpic -Wall
+COMPILER_FLAGS = -w -pthread -c -fpic -Wall -g
 LINKER_FLAGS = -lm
 
 PROJECT_NAME = floppymusic
