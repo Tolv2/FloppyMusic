@@ -63,7 +63,7 @@ void* FM_FloppyLoop(void* _floppy){
             info->writeFunc(info->driveSelectGPIOPin, logicalFalse);
             info->writeFunc(info->stepGPIOPin, logicalFalse);
 
-            floppy->track += 1 + (duration.tv_nsec / (FM_STEP_RATIO));
+            floppy->track += 1 ;//+ (duration.tv_nsec / (FM_STEP_RATIO)); <-- this proved unnescesary
 
             if (floppy->track >= info->floppyTracks){ // if we hit the end of the track, reverse direction
                 floppy->track = 0;
