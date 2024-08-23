@@ -1,4 +1,4 @@
-SUBDIRS = raspberrypi
+SUBDIRS = raspberrypi pc_to_arduino
 
 .PHONY: all clean ${SUBDIRS}
 

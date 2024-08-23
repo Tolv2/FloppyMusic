@@ -18,7 +18,7 @@
 #define LOGICAL_TRUE false // This refers to whether the pin is pulled high or low when you want the floppy drive to consider it as 'true'. There should be no reason to change it.
 #define FLOPPY_TRACKS 80 // This depends on your drive. 80 is a reasonable assumption, those are the most common.
 
-#define MIDI_MESSAGE_BUF_SIZE 100 // I just made this up, adjust it if you have a very large file or something.
+#define MIDI_MESSAGE_BUF_SIZE 100 // I just made this up, adjust it if you have a very large file and it keeps throwing errors or something.
 
 #define TRANSPOSE_OFFSET -12
 

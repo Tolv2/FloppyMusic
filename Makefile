@@ -1,4 +1,4 @@
-SUBDIRS = src examples
+SUBDIRS = src #examples
 
 .PHONY: all clean ${SUBDIRS}
 
