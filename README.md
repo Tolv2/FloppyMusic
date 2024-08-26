@@ -1,6 +1,6 @@
 # FloppyMusic - Musical Floppy Disk Drive 'library'
 
-This project aims to create a small library that makes it easier to control a given number of FDDs (which I will refer to as floppies) in such a way that they produce a certain note when told to do so. This is done by pulsing the floppies' STEP and DRIVE ENABLE pins logically true (usually LOW) at exactly the right frequency. This library is able to manage multiple floppies at once by spawning a new thread for each one. 
+This project aims to create a small library that makes it easier to control a given number of FDDs (which I will refer to as floppies) in such a way that they produce a certain note when told to do so. This is done by pulsing the floppies' STEP and DRIVE ENABLE pins logically true (usually LOW) at exactly the right frequency. This library is able to manage multiple floppies at once by spawning a new thread for each one. Crude documentation is available on [GitHub Pages](https://tolv2.github.io/FloppyMusic/).
 
 # Dependencies
 
