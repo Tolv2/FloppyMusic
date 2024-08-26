@@ -1,37 +1,48 @@
 #include "FloppyMusic.h"
 
-#include <pigpio.h>
+#include <libserialport.h>
 #include <portmidi.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #define NUMBER_OF_FLOPPIES 2
 
-#define DIRECTION_SELECT_PIN_FLOPPY1 27 // Adjust these according to your physical connections.
-#define DRIVE_SELECT_PIN_FLOPPY1 22
-#define STEP_PIN_FLOPPY1 17
+#define STEP_PIN_FLOPPY1 8 
+#define DIRECTION_SELECT_PIN_FLOPPY1 7 // Adjust these according to your physical connections.
+#define DRIVE_SELECT_PIN_FLOPPY1 6
 
-#define DIRECTION_SELECT_PIN_FLOPPY2 2
-#define DRIVE_SELECT_PIN_FLOPPY2 3
-#define STEP_PIN_FLOPPY2 4
+#define STEP_PIN_FLOPPY2 5
+#define DIRECTION_SELECT_PIN_FLOPPY2 3
+#define DRIVE_SELECT_PIN_FLOPPY2 4
 
 #define LOGICAL_TRUE false // This refers to whether the pin is pulled high or low when you want the floppy drive to consider it as 'true'. There should be no reason to change it.
 #define FLOPPY_TRACKS 80 // This depends on your drive. 80 is a reasonable assumption, those are the most common.
 
 #define MIDI_MESSAGE_BUF_SIZE 100 // I just made this up, adjust it if you have a very large file and it keeps throwing errors or something.
+#define TRANSPOSE_OFFSET 0
 
-#define TRANSPOSE_OFFSET -12
+#define SERIAL_BAUDRATE 115200
+
 
 bool midiMode;
-void myWriteFunction(int pin, bool value){
-    gpioWrite(pin, value);
-}
-
 PmDeviceID deviceNo;
 PortMidiStream* device;
 PmEvent* event;
 FM_Floppy floppy1, floppy2;
 long status, note, velocity;
+uint8_t message;
+struct sp_port** serialPorts;
+struct sp_port* arduinoPort;
+
+// Message length: 1 byte
+// Message structure:
+// 0bSPPPPPPP; S = status high/low (1 - high, 0 - low); P = pin number
+void myWriteFunction(int pin, bool value){
+    message = (pin & 0b01111111) | (value << 7);
+    sp_blocking_write(arduinoPort, &message, 1, 0);
+    sp_drain(arduinoPort);
+}
+
 FM_FloppyInfo floppy2info = {
     DIRECTION_SELECT_PIN_FLOPPY1,
     DRIVE_SELECT_PIN_FLOPPY1,
@@ -50,6 +61,7 @@ FM_FloppyInfo floppy2info = {
 };
 
 
+
 int main(){
     printf("Initialising FloppyMusic...\n");
     if(FM_Init(NUMBER_OF_FLOPPIES) < 0){
@@ -58,24 +70,40 @@ int main(){
     }
     printf("FloppyMusic Initialisation succeded.\n");
 
-    if(gpioInitialise() < 0) {
-        printf("GPIO library initialisation failed. Are you running with sudo?\n");
+    if(sp_list_ports(&serialPorts) != SP_OK) {
+        printf("Serial port listing failed. Are you running with sudo/admin? Is your arduino connected and working?\n");
+        FM_Deinit();
         return -2;
     }
-    printf("GPIO Initialisation succeded.\n");
+    printf("Found serial ports:\n");
+    
+    for (int i = 0; serialPorts[i] != NULL; i++)
+    {
+        printf("Port number %d: %s\n", i, sp_get_port_name(serialPorts[i]));
+    }
+    printf("\nSelect the Arduino's port (usually /dev/ttyUSB0 on Unixes or COM6 on Windows)\n>");
+    int portNo;
+    scanf("%d", &portNo);
+    if(sp_copy_port(serialPorts[portNo], &arduinoPort) != SP_OK) {
+        printf("Copying port failed. Are you running with sudo/admin? Is your arduino connected and working?\n");
+        FM_Deinit();
+        return -2;
+    }
+    sp_free_port_list(serialPorts);
+    if(sp_open(arduinoPort, SP_MODE_WRITE) != SP_OK || sp_set_baudrate(arduinoPort, SERIAL_BAUDRATE) != SP_OK) {
+        printf("Opening and configuring port failed. Are you running with sudo/admin? Is your arduino connected and working? Is the port busy (Make sure the Arduino IDE Serial Monitor isn't open)\n");
+        FM_Deinit();
+        return -2;
+    }
+    
 
-    gpioSetMode(DRIVE_SELECT_PIN_FLOPPY1, PI_OUTPUT);
-    gpioSetMode(DIRECTION_SELECT_PIN_FLOPPY1, PI_OUTPUT);
-    gpioSetMode(STEP_PIN_FLOPPY1, PI_OUTPUT);
-    
-    gpioSetMode(DRIVE_SELECT_PIN_FLOPPY2, PI_OUTPUT);
-    gpioSetMode(DIRECTION_SELECT_PIN_FLOPPY2, PI_OUTPUT);
-    gpioSetMode(STEP_PIN_FLOPPY2, PI_OUTPUT);
-    
+
+
+
 
     if(Pm_Initialize() < 0) {
         printf("PortMidi library initialization failed. Does your system support MIDI? There should be at least a MIDI loopback device listed when running 'aplaymidi -l'\n");
-        gpioTerminate();
+        FM_Deinit();
         return -3;
     }
     printf("PortMidi Initialisation succeded.\n");
@@ -92,7 +120,6 @@ int main(){
     if(Pm_OpenInput(&device, deviceNo, NULL, MIDI_MESSAGE_BUF_SIZE, NULL, NULL) < 0) {
         printf("Opening the device failed. Exiting\n");
         FM_Deinit();
-        gpioTerminate();
         Pm_Terminate();
         return -4;
     }
@@ -109,7 +136,7 @@ int main(){
     if(FM_RegisterFloppyFromInfo(&floppy1, &floppy1info) != 0 ||
     FM_RegisterFloppyFromInfo(&floppy2, &floppy2info) != 0) {
         printf("Creating and/or registering FM_Floppy failed. Exiting.\n");
-        gpioTerminate();
+        FM_Deinit();
         Pm_Terminate();
         return -5;
     }
@@ -173,7 +200,7 @@ int main(){
 
     free(event);
 
-    gpioTerminate();
+    FM_Deinit();
     Pm_Terminate();
     FM_Deinit();
 }
