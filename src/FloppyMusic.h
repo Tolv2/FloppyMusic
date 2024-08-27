@@ -15,7 +15,7 @@ extern bool FM_Initialized; ///< Used to check if FM_Initialize has been called.
  * 
  * @param maxFloppies the number of floppies to allocate for.
  */
-int FM_Init(FM_index_t maxFloppies /**< [in]  The number of connected floppies*/);
+int FM_Init(FM_index_t maxFloppies);
 /**
  * Library deinitialization function. Frees memory from FM_Registry.
  */

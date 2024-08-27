@@ -12,7 +12,7 @@ The dependencies for the examples are listed in their own READMEs.
 
 Generally, the workflow should look like this:
 
-1. Initialize the library with a call to FM_Init
+1. Initialize the library with a call to FM_Init()
 2. Create and fill correct FM_FloppyInfo structs that contain all the nescessary information in order to drive the floppy correctly. This includes mapping all the pins, but also providing a write function that will set a certain pin to true or false with the signature void(int, bool) (see examples)
 3. Create (but do not nescesarily fill) FM_Floppy structs that will serve as a handle.
 4. Register the floppies to the library by either calling FM_RegisterFloppyFromInfo(), or filling the FM_Floppy struct manually and then calling FM_RegisterFloppy()
