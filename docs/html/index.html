@@ -110,7 +110,7 @@ Dependencies</h1>
 Usage</h1>
 <p>Generally, the workflow should look like this:</p>
 <ol type="1">
-<li>Initialize the library with a call to FM_Init</li>
+<li>Initialize the library with a call to <a class="el" href="FloppyMusic_8c.html#ae610c64488dffb69894a23f38b082b0a" title="Library initalization function.">FM_Init()</a></li>
 <li>Create and fill correct <a class="el" href="structFM__FloppyInfo.html" title="A struct representing a physical floppy device and how to interface with it.">FM_FloppyInfo</a> structs that contain all the nescessary information in order to drive the floppy correctly. This includes mapping all the pins, but also providing a write function that will set a certain pin to true or false with the signature void(int, bool) (see examples)</li>
 <li>Create (but do not nescesarily fill) <a class="el" href="structFM__Floppy.html" title="A struct representing a floppy device managed by the library.">FM_Floppy</a> structs that will serve as a handle.</li>
 <li>Register the floppies to the library by either calling <a class="el" href="FM__Floppy_8c.html#a00f1ccd02f673accc92aabef7715669b" title="Helper function that assigns the FM_FloppyInfo object to the FM_Floppy object, and then registers it.">FM_RegisterFloppyFromInfo()</a>, or filling the <a class="el" href="structFM__Floppy.html" title="A struct representing a floppy device managed by the library.">FM_Floppy</a> struct manually and then calling <a class="el" href="FM__Floppy_8c.html#aa8d67053681a46ef4cac11eb3f5b1758" title="Used internally, but can be used externally.">FM_RegisterFloppy()</a></li>
