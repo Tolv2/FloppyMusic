@@ -12,7 +12,7 @@ cd FloppyMusic
 make
 cd examples/parallel_port
 ```
-You should now open `parallel_port.c` with your preferred text editor and change the defines to match the pinout of your floppies. You need to connect the floppies' STEP, DRIVE SELECT and DIRECTION SELECT pins, and map them out in the defines accordingly. Once you're done, save and compile with `make`. You need to run the resulting executable with sudo, i.e. `sudo ./parallel_port`, because IO managment requires it.
+You should now open `parallel_port.c` with your preferred text editor and change the defines to match the pinout of your floppies. You need to connect the floppies' STEP, DRIVE SELECT and DIRECTION SELECT pins, and map them out in the defines accordingly. Note that the pin numbers used in the example refer to the D (or output) pins of the parallel port (so, pin 0 maps to D0, pin 1 to D1 etc., the control pins are unused, and if you wish to use them, you will need to modify the example). Once you're done, save and compile with `make`. You need to run the resulting executable with sudo, i.e. `sudo ./parallel_port`, because IO managment requires it.
 
 # Usage
 After running, you will be (after some text) asked to select a MIDI device to open. If you wish to play MIDI files, select the MIDI Through port, if you have a MIDI instrument, connect it before running the program, and select it now. 
